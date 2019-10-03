@@ -7,23 +7,63 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-dataTrain = np.array(pd.read_csv("train.csv"))
-dataTest = 0
-#print(data.shape)
+Training = False
+Testing = True
+loadState = True
 
-trainLabel = dataTrain[:,0]
-trainingSet = dataTrain[:,1:]
-train = []
-for row in trainingSet:
-    train.append(row.reshape(28,28))
-train = torch.from_numpy(np.array(train))
-
-#print(trainLabel[240])
-#plt.imshow(train[240,:, :])
-#plt.show()
+TrainingData = np.array(pd.read_csv("mnist_train.csv"))[0:50000, :]
+ValidationData = np.array(pd.read_csv("mnist_train.csv"))[50000:,:]
+TestingData = np.array(pd.read_csv("mnist_test.csv"))
 
 model = LeNet()
-passe = torch.from_numpy(np.expand_dims(np.expand_dims(train[240,:, :], axis=0), axis=0))
-passe = passe.type('torch.FloatTensor')
-#print(passe.shape) sadas
-print(model.forward(passe))
+if loadState:
+    model.load_state_dict(torch.load("bestState.pth"))
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+loss_fn =  nn.CrossEntropyLoss()
+
+if Training:
+    while model.EpochRunner:
+        trainloader = torch.utils.data.DataLoader(TrainingData, batch_size=250, shuffle=True, num_workers=8)
+        for batch in trainloader:
+            optimizer.zero_grad()
+
+            batchLabel = batch[:,0]
+            batchData = batch[:,1:].reshape(250,1,28,28).float()
+
+            y_pred = model.forward(batchData)
+
+            loss = loss_fn(y_pred, batchLabel)
+            loss.backward()
+            optimizer.step()
+
+        model.CurrentValidationLoss.clear()
+        validationLoader = torch.utils.data.DataLoader(ValidationData, batch_size=250, shuffle=True, num_workers=8)
+        for batch in validationLoader:
+            batchLabel = batch[:,0]
+            batchData = batch[:,1:].reshape(250,1,28,28).float()
+            y_pred = model.forward(batchData)
+            loss = loss_fn(y_pred, batchLabel)
+            model.CurrentValidationLoss.append(float(loss.item()))
+
+        model.OverallValidationLoss.append(np.mean(np.array(model.CurrentValidationLoss)))
+        model.EvaluateNextEpoch()
+        print(np.mean(np.array(model.CurrentValidationLoss)))
+
+if Testing:
+    resultlist = []
+    testLoader = torch.utils.data.DataLoader(TestingData, batch_size=1, num_workers=8)
+    for batch in testLoader:
+        batchLabel = batch[:,0]
+        batchData = batch[:,1:].reshape(1,1,28,28).float()
+        y_pred = model.predict(batchData)
+        resultlist.append(y_pred == batchLabel[0])
+
+    resultlist = np.array(resultlist)
+    total = len(resultlist)
+    tp = len(resultlist[resultlist == True])
+    fp = len(resultlist[resultlist == False])
+    print("Total test samples: " + str(total))
+    print("Correctly Predicted Samples: " + str(tp))
+    print("Falsely Predicted Samples: " + str(fp))
+    print("Overall Accuracy: " + str(tp/total * 100) + "%")
+    print("Overall Error: " + str(fp/total * 100) + "%")
