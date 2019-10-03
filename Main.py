@@ -25,5 +25,5 @@ train = torch.from_numpy(np.array(train))
 model = LeNet()
 passe = torch.from_numpy(np.expand_dims(np.expand_dims(train[240,:, :], axis=0), axis=0))
 passe = passe.type('torch.FloatTensor')
-#print(passe.shape)
+#print(passe.shape) sadas
 print(model.forward(passe))
